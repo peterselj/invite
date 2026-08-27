@@ -52,7 +52,18 @@
     border-radius:12px; padding:14px 16px; font-size:16px; color:var(--text); cursor:pointer; text-align:left;
     transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
   }
-  .choice:hover { border-color: var(--accent); background: rgba(255,84,112,0.12); }
+  /* Scoped to real pointing devices only. Without this guard, WebKit mobile
+     browsers (incl. Chrome on iOS) apply :hover on tap and leave it stuck at
+     that screen coordinate until the next tap — since each question's choice
+     list renders at roughly the same position, whatever choice ends up in the
+     same slot on the *next* question inherits the leftover hover state. That
+     was the "tap C, next question shows C highlighted" bug: no touchscreen
+     has a mouse to "unhover" with, so :hover should never apply to one.
+     `hover: hover` + `pointer: fine` is true for mice/trackpads and false for
+     touchscreens. */
+  @media (hover: hover) and (pointer: fine) {
+    .choice:hover { border-color: var(--accent); background: rgba(255,84,112,0.12); }
+  }
   .choice.selected { border-color: var(--accent); background: rgba(255,84,112,0.22); }
   .choice-key { flex-shrink:0; width:26px; height:26px; border-radius:7px; border:2px solid rgba(255,255,255,0.25);
     display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; color: var(--muted); }

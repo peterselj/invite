@@ -215,6 +215,9 @@
     let statScreenEnteredAt = null;
     let statTimeAccumMs = 0;
     let avatarState = { face: 5, hair: 5, beard: 0 }; // 0-10 sliders
+    // The screen currently (or about to be) shown, tracked directly rather than
+    // re-derived from the DOM each render — see render() for why.
+    let activeScreenEl = null;
 
     // ============================================================
     // RENDER
@@ -235,11 +238,26 @@
       // transition, guarantees at most two screens ever coexist.
       stage.querySelectorAll('.screen.leaving').forEach(s => s.remove());
       const el = buildScreen(currentId);
-      const prev = stage.querySelector('.screen.active');
+      // `prev` must come from a plain JS variable, not a DOM query for
+      // .screen.active — a real double-tap on "Back" (which has no debounce)
+      // can call render() a second time before the first call's
+      // requestAnimationFrame callback has run to actually add the 'active'
+      // class. Querying the DOM at that point would still find the *original*
+      // screen (the new one hasn't been marked active yet), so both queued RAF
+      // callbacks would try to retire the same original screen — leaving the
+      // middle screen's 'active' class never removed, stuck on-screen forever,
+      // stacked under whatever renders next. That's what showed up on real
+      // devices as an option looking pre-selected, or two options highlighted
+      // at once after going Back. Tracking the intended active element
+      // directly sidesteps the race entirely: each render() call captures
+      // exactly the screen that was active (or about-to-be-active) at the
+      // moment it ran, however many renders queue up before the next paint.
+      const prev = activeScreenEl;
+      activeScreenEl = el;
       stage.appendChild(el);
       requestAnimationFrame(() => {
         el.classList.add('active');
-        if (prev) { prev.classList.remove('active'); prev.classList.add('leaving'); setTimeout(()=>{ if (prev.parentNode) prev.remove(); },400); }
+        if (prev && prev.parentNode) { prev.classList.remove('active'); prev.classList.add('leaving'); setTimeout(()=>{ if (prev.parentNode) prev.remove(); },400); }
       });
       const af = el.querySelector('[data-autofocus]');
       if (af) setTimeout(()=>af.focus(),350);

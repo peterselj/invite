@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>You're Invited 🎉</title>
+<style>
+  :root {
+    --accent: #ff5470; --accent2: #7c5cff; --gold: #ffd166;
+    --bg: #14142b; --bg2: #23234a; --text: #f4f4f9; --muted: #a5a5c0;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; height:100%; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow:hidden; }
+
+  .bg { position: fixed; inset:0; z-index:0; overflow:hidden; background: radial-gradient(circle at 20% 20%, #1c1c3c, var(--bg) 60%); }
+  .blob { position:absolute; border-radius:50%; filter: blur(60px); opacity:0.35; animation: drift 22s ease-in-out infinite; }
+  .blob.b1 { width:420px; height:420px; background: var(--accent2); top:-10%; left:-10%; animation-duration:26s; }
+  .blob.b2 { width:380px; height:380px; background: var(--accent); bottom:-15%; right:-5%; animation-duration:20s; animation-delay:-6s; }
+  .blob.b3 { width:300px; height:300px; background: var(--gold); top:40%; left:60%; animation-duration:30s; animation-delay:-12s; opacity:0.18; }
+  @keyframes drift { 0%,100% { transform: translate(0,0) scale(1); } 33% { transform: translate(40px,-30px) scale(1.08); } 66% { transform: translate(-30px,25px) scale(0.95); } }
+  .star { position:absolute; width:3px; height:3px; background:white; border-radius:50%; opacity:0.6; animation: twinkle 3s ease-in-out infinite; }
+  @keyframes twinkle { 0%,100% { opacity:0.15; } 50% { opacity:0.9; } }
+
+  #app { position: relative; z-index:1; height:100vh; height:100dvh; width:100vw; display:flex; flex-direction:column; }
+  .progress-track { height:6px; width:100%; background: rgba(255,255,255,0.08); flex-shrink:0; }
+  .progress-fill { height:100%; width:0%; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width 0.4s ease; }
+  .stage { flex:1; position:relative; }
+  .screen {
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
+    text-align:center; opacity:0; transform: translateY(24px); pointer-events:none;
+    transition: opacity 0.35s ease, transform 0.35s ease; overflow-y: auto;
+  }
+  .screen.active { opacity:1; transform: translateY(0); pointer-events:auto; }
+  .screen.leaving { opacity:0; transform: translateY(-24px); }
+  /* `margin: auto 0` on the inner wrapper (not `justify-content:center` on
+     .screen itself) is what centers short content vertically. Unlike
+     justify-content:center, this degrades gracefully when content is taller
+     than the screen: it collapses to top-aligned instead of clipping the top
+     of the content out of scroll range. That clipped-top behavior was the
+     "question appears off screen at the top" bug on small mobile viewports. */
+  .screen-inner {
+    width:100%; margin: auto 0; padding: 28px 22px; display:flex; flex-direction:column; align-items:center;
+  }
+
+  .q-index { color: var(--accent); font-weight:700; letter-spacing:0.08em; text-transform:uppercase; font-size:13px; margin-bottom:14px; }
+  .q-prompt { font-size: clamp(21px, 4vw, 34px); font-weight:700; max-width:680px; line-height:1.3; margin-bottom:26px; min-height:1.3em; white-space:pre-wrap; }
+
+  .choices { display:flex; flex-direction:column; gap:10px; width:100%; max-width:460px; }
+  .choice {
+    display:flex; align-items:center; gap:12px; background: rgba(255,255,255,0.06); border:2px solid rgba(255,255,255,0.12);
+    border-radius:12px; padding:14px 16px; font-size:16px; color:var(--text); cursor:pointer; text-align:left;
+    transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+  }
+  .choice:hover { border-color: var(--accent); background: rgba(255,84,112,0.12); }
+  .choice.selected { border-color: var(--accent); background: rgba(255,84,112,0.22); }
+  .choice-key { flex-shrink:0; width:26px; height:26px; border-radius:7px; border:2px solid rgba(255,255,255,0.25);
+    display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; color: var(--muted); }
+
+  .map-link { display:inline-block; margin-top:14px; color: var(--gold); font-size:14px; font-weight:600; text-decoration:none; border-bottom:1px solid rgba(255,209,102,0.4); }
+  .map-link:hover { border-bottom-color: var(--gold); }
+
+  .text-input { width:100%; max-width:420px; font-size:20px; padding:14px 4px; background:transparent; border:none;
+    border-bottom:2px solid rgba(255,255,255,0.25); color: var(--text); outline:none; text-align:center; }
+  .text-input:focus { border-bottom-color: var(--accent); }
+
+  .nav { display:flex; gap:12px; margin-top:28px; }
+  .btn { border:none; border-radius:999px; padding:12px 26px; font-size:15px; font-weight:600; cursor:pointer; transition: transform 0.1s ease; }
+  .btn:active { transform: scale(0.96); }
+  .btn-primary { background: var(--accent); color:white; }
+  .btn-primary:disabled { opacity:0.35; cursor:not-allowed; }
+  .btn-submit { background: var(--gold); color:#241800; font-weight:800; box-shadow: 0 0 0 3px rgba(255,209,102,0.25); }
+  .btn-submit:disabled { opacity:0.35; cursor:not-allowed; box-shadow:none; }
+  .btn-ghost { background:transparent; color: var(--muted); }
+  .hint { margin-top:14px; color: var(--muted); font-size:12px; }
+  .error-msg { color: var(--accent); font-size:13px; margin-top:8px; min-height:16px; }
+  .title-sub { color: var(--muted); font-size:16px; max-width:500px; margin-bottom:26px; }
+
+  /* ---- avatar builder ---- */
+  .avatar-preview { margin-bottom: 14px; border-radius: 12px; background: rgba(255,255,255,0.04); }
+  .slider-block { width:100%; max-width:360px; margin: 10px 0; text-align:left; }
+  .slider-label { font-size:13px; color: var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; }
+  input[type=range] { -webkit-appearance:none; width:100%; height:14px; border-radius:999px; outline:none; background:transparent; }
+  input[type=range].rainbow { background: linear-gradient(90deg, red, orange, yellow, limegreen, cyan, blue, violet, red); }
+  input[type=range].mono { background: linear-gradient(90deg, rgba(255,255,255,0.1), var(--accent2)); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:24px; height:24px; border-radius:50%; background:white; border:4px solid #222; cursor:pointer; margin-top:-5px; }
+  input[type=range]::-moz-range-thumb { width:24px; height:24px; border-radius:50%; background:white; border:4px solid #222; cursor:pointer; }
+  input[type=range]::-moz-range-track { height:14px; border-radius:999px; }
+  input[type=range].rainbow::-moz-range-track { background: linear-gradient(90deg, red, orange, yellow, limegreen, cyan, blue, violet, red); }
+  input[type=range].mono::-moz-range-track { background: linear-gradient(90deg, rgba(255,255,255,0.1), var(--accent2)); }
+
+  /* Facial-hair slider: a custom widget (not <input type=range>) since the
+     drag needs to keep tracking the pointer past the track's own edge. */
+  .custom-slider-track { position:relative; width:100%; height:14px; border-radius:999px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.1), var(--accent2)); touch-action:none; cursor:pointer; }
+  .custom-slider-fill { position:absolute; left:0; top:0; bottom:0; border-radius:999px; background: rgba(255,255,255,0.22); pointer-events:none; }
+  .custom-slider-thumb { position:absolute; top:50%; width:24px; height:24px; border-radius:50%; background:white;
+    border:4px solid #222; transform: translate(-50%,-50%); cursor:grab; transition: left 0.05s linear; }
+  .custom-slider-thumb.dragging { cursor:grabbing; transition:none; }
+  .custom-slider-thumb.overdrive { animation: overdrive-pulse 0.5s ease-in-out infinite; border-color: var(--accent); }
+  @keyframes overdrive-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(255,84,112,0.6); } 50% { box-shadow: 0 0 0 8px rgba(255,84,112,0); } }
+
+  /* ---- final screen: card + calendar ---- */
+  .final-wrap { display:flex; flex-wrap:wrap; gap:26px; align-items:flex-start; justify-content:center; max-width:760px; }
+  .confirm-card { max-width:340px; background: rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:16px;
+    padding:22px 24px; text-align:left; font-size:14px; line-height:1.7; }
+  .confirm-card b { color: var(--gold); }
+  .cal-buttons { display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
+  .cal-buttons a { text-decoration:none; background: rgba(255,209,102,0.15); border:1px solid var(--gold); color: var(--gold);
+    padding:9px 14px; border-radius:8px; font-size:12px; font-weight:700; }
+  .card-download-btn { margin-top:12px; }
+
+  #confetti { position:fixed; inset:0; z-index:15; pointer-events:none; }
+</style>
+</head>
+<body>
+  <div class="bg" id="bg"></div>
+  <canvas id="confetti"></canvas>
+  <div id="app">
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="stage" id="stage"></div>
+  </div>
+
+  <script>
+    // ============================================================
+    // EVENT DETAILS
+    // ============================================================
+    const EVENT = {
+      title: "Josh's Birthday Party",
+      location: 'The Green Room, Shaw Festival Theatre, Niagara-on-the-Lake',
+      mapUrl: 'http://maps.app.goo.gl/pzfv4ys4NTH6Hz7C7',
+      // Sept 14, doors 8:30pm / game at 9pm ET (EDT = UTC-4 in September).
+      // Calendar entry starts at doors-open time; end time shifted to keep the
+      // original 2-hour span (now 8:30–10:30pm) — adjust endUTC if that's wrong.
+      startUTC: '20260915T003000Z', endUTC: '20260915T023000Z',
+      humanWhen: 'Monday, September 14 · Doors 8:30pm, game at 9:00pm',
+    };
+    function googleCalUrl() {
+      const p = new URLSearchParams({ action:'TEMPLATE', text: EVENT.title, dates: `${EVENT.startUTC}/${EVENT.endUTC}`,
+        details: `Details: ${EVENT.mapUrl}`, location: EVENT.location });
+      return `https://www.google.com/calendar/render?${p.toString()}`;
+    }
+    function icsUrl() {
+      const ics = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//birthday-invite//EN','BEGIN:VEVENT',
+        `DTSTART:${EVENT.startUTC}`,`DTEND:${EVENT.endUTC}`,`SUMMARY:${EVENT.title}`,`LOCATION:${EVENT.location}`,
+        `DESCRIPTION:${EVENT.mapUrl}`,'END:VEVENT','END:VCALENDAR'].join('\r\n');
+      return 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
+    }
+    const EXEC_URL = 'https://script.google.com/macros/s/AKfycbyMU_miUBvTvIrY7I9KNEzbBiVLSQENPJVfQvpmZkhF0bGVAOzAcvUcg8HF-5IEXViv/exec';
+
+    // ============================================================
+    // QUESTIONS — mad-libs sentences that secretly feed player-card
+    // stats. `statMap` gives each choice's index a 1-10 value.
+    // ============================================================
+    const START_ID = 'ack';
+    const QUESTIONS = {
+      ack: { type:'choice',
+        prompt: "Hi there. this birthday RSVP is mad libs style. Just follow the prompts! You can do it; I believe in you",
+        choices: ['yes', 'okay', 'well fine'], next: 'power' },
+
+      power: { type:'choice',
+        prompt: 'The room went dark, and just as you reached for the light switch, you felt:',
+        choices: ['a faint static tingle', 'the temperature rising; the barometer getting low', 'your feelings', 'the pea under your mattress', "like you'd had one too many alcohol-infused hotdogs"],
+        statId: 'power', next: 'shoot' },
+
+      shoot: { type:'choice',
+        prompt: 'Cricket season has taught you:',
+        choices: ['catches win matches', 'catches win back scratches', 'one is one', 'existence is pain', 'the key to a balanced budget is a bake sale'],
+        statId: 'shoot', next: 'dunks' },
+
+      dunks: { type:'choice',
+        prompt: "Hark! September approaches, which means it's time for the annual",
+        choices: ["Good night's sleep", 'None of the above', 'Berlin-style ping pong birthday party, featuring games, prizes, stickers, free drinks for people who show up on time, and probably other stuff you\'re forgetting', 'Muscle beach body building competition', 'Bargaining session with the devil over the fate of your soul'],
+        statId: 'dunks', next: 'eventNotice' },
+
+      eventNotice: { type:'choice',
+        prompt: 'You carefully took note of the details:',
+        choices: ['Monday Sept 14th, doors at 8:30pm (game starts at 9), at the Green Room at the Shaw Festival Theatre'],
+        linkAfter: { label: 'Open in Google Maps ↗', url: EVENT.mapUrl },
+        next: 'name' },
+
+      name: { type:'text', prompt: 'You shouted into the night: "My name is…"', next: 'attending' },
+
+      attending: { type:'choice', prompt: 'And I',
+        choices: ["can't wait to be there!", "won't come because I hate fun! : ("], next: 'avatar' },
+
+      avatar: { type:'avatar', prompt: 'You stole one last look in the mirror…', next: 'steal' },
+
+      steal: { type:'choice',
+        prompt: 'Then for kicks also stole',
+        choices: ['candy from a baby', 'a compliment meant for someone else', '48 cars in 5 days', 'the declaration of independence', 'Intellectual property from the disney corporation'],
+        statId: 'steal', next: 'block' },
+
+      block: { type:'choice',
+        prompt: 'And said your famous catch phrase',
+        choices: ["I diarrhea'd in the tub!", 'when the going gets tough the tough get a great rate on their home and car insurance by bundling with Geico', "I'll make them clamor for my grandma!", "fly like a butterfly, sing like nobody's watching, eat like it's fish fry thursday at the legion", 'Okay, Blue Jays!'],
+        statId: 'block', next: null },
+    };
+    const STAT_QUESTION_IDS = ['power','shoot','dunks','steal','block'];
+    const ESTIMATED_TOTAL_STEPS = 10;
+
+    // ============================================================
+    // STATE
+    // ============================================================
+    const stage = document.getElementById('stage');
+    const progressFill = document.getElementById('progressFill');
+    const answers = {};
+    const history = [];
+    let currentId = null;
+    let submitting = false;
+    // Speed feeds off real time spent on just the 5 stat questions (they're no
+    // longer consecutive — eventNotice/name/attending/avatar sit between some
+    // of them — so we accumulate time entering/leaving each stat screen rather
+    // than timing one contiguous block).
+    let statScreenEnteredAt = null;
+    let statTimeAccumMs = 0;
+    let avatarState = { face: 5, hair: 5, beard: 0 }; // 0-10 sliders
+
+    // ============================================================
+    // RENDER
+    // ============================================================
+    function setProgress() {
+      const pct = Math.min(100, Math.round((history.length / ESTIMATED_TOTAL_STEPS) * 100));
+      progressFill.style.width = pct + '%';
+    }
+    function render() {
+      setProgress();
+      // Choice auto-advance re-renders after only 160ms, but a leaving screen's
+      // fade-out (and its scheduled removal) takes 400ms. Tapping through a
+      // couple of questions quickly (normal on mobile) could previously stack
+      // 2-3 .screen elements on top of each other mid-fade — that's what showed
+      // up as overlapping question text and a phantom "pre-selected" choice
+      // (really the previous screen's selection, still fading underneath).
+      // Cutting any still-fading screen immediately, before starting a new
+      // transition, guarantees at most two screens ever coexist.
+      stage.querySelectorAll('.screen.leaving').forEach(s => s.remove());
+      const el = buildScreen(currentId);
+      const prev = stage.querySelector('.screen.active');
+      stage.appendChild(el);
+      requestAnimationFrame(() => {
+        el.classList.add('active');
+        if (prev) { prev.classList.remove('active'); prev.classList.add('leaving'); setTimeout(()=>{ if (prev.parentNode) prev.remove(); },400); }
+      });
+      const af = el.querySelector('[data-autofocus]');
+      if (af) setTimeout(()=>af.focus(),350);
+    }
+
+    function buildScreen(id) {
+      const el = document.createElement('div');
+      el.className = 'screen';
+
+      if (id === 'thanks') return buildThanksScreen();
+      if (QUESTIONS[id].type === 'avatar') return buildAvatarScreen(id);
+
+      const q = QUESTIONS[id];
+      const promptHtml = `<div class="q-prompt"></div>`;
+
+      if (q.type === 'choice') {
+        const choicesHtml = q.choices.map((c,i) => `
+          <div class="choice" data-value="${escapeHtml(c)}" tabindex="0"><span class="choice-key">${indexToKey(i)}</span>${escapeHtml(c)}</div>
+        `).join('');
+        const linkHtml = q.linkAfter
+          ? `<a class="map-link" href="${escapeAttr(q.linkAfter.url)}" target="_blank" rel="noopener">${escapeHtml(q.linkAfter.label)}</a>`
+          : '';
+        const isFinal = q.next === null;
+        el.innerHTML = `
+          <div class="screen-inner">
+            ${promptHtml}
+            <div class="choices">${choicesHtml}</div>
+            ${linkHtml}
+            <div class="error-msg" id="errorMsg"></div>
+            <div class="nav">
+              <button class="btn btn-ghost" id="backBtn">Back</button>
+              <button class="btn ${isFinal ? 'btn-submit' : 'btn-primary'}" id="nextBtn" disabled>${isFinal ? 'Submit' : 'Next'}</button>
+            </div>
+            <div class="hint">Press ${q.choices.map((c,i)=>indexToKey(i)).join(', ')} — or click${isFinal ? ', then press Submit' : ''}</div>
+          </div>
+        `;
+        const existing = answers[id];
+        el.querySelectorAll('.choice').forEach(node => {
+          if (existing === node.dataset.value) node.classList.add('selected');
+          node.addEventListener('click', () => selectChoice(el, id, node));
+        });
+      } else {
+        const isFinal = q.next === null;
+        el.innerHTML = `
+          <div class="screen-inner">
+            ${promptHtml}
+            <input class="text-input" id="textInput" placeholder="Type your answer..." data-autofocus value="${escapeAttr(answers[id]||'')}" />
+            <div class="error-msg" id="errorMsg"></div>
+            <div class="nav">
+              <button class="btn btn-ghost" id="backBtn">Back</button>
+              <button class="btn ${isFinal ? 'btn-submit' : 'btn-primary'}" id="nextBtn">${isFinal ? 'Submit' : 'Next'}</button>
+            </div>
+            <div class="hint">Press Enter ↵</div>
+          </div>
+        `;
+        el.querySelector('#textInput').addEventListener('keydown', e => { if (e.key==='Enter') attemptAdvance(el,id); });
+      }
+
+      el.querySelector('.q-prompt').textContent = q.prompt;
+      el.querySelector('#backBtn').addEventListener('click', goBack);
+      const nextBtn = el.querySelector('#nextBtn');
+      if (nextBtn) nextBtn.addEventListener('click', () => attemptAdvance(el, id));
+      return el;
+    }
+
+    function indexToKey(i) { return String.fromCharCode(65+i); }
+
+    // ============================================================
+    // AVATAR SCREEN
+    // ============================================================
+    function buildAvatarScreen(id) {
+      const el = document.createElement('div');
+      el.className = 'screen';
+      el.innerHTML = `
+        <div class="screen-inner">
+          <div class="q-prompt">${escapeHtml(QUESTIONS[id].prompt)}</div>
+          <canvas id="avatarCanvas" class="avatar-preview" width="260" height="280"></canvas>
+          <div class="slider-block">
+            <div class="slider-label"><span>Face</span></div>
+            <input type="range" class="rainbow" id="faceSlider" min="0" max="10" value="${avatarState.face}">
+          </div>
+          <div class="slider-block">
+            <div class="slider-label"><span>Hair</span></div>
+            <input type="range" class="rainbow" id="hairSlider" min="0" max="10" value="${avatarState.hair}">
+          </div>
+          <div class="slider-block">
+            <div class="slider-label"><span>Facial hair: no</span><span id="beardValueLabel">very yes</span></div>
+            <div class="custom-slider-track" id="beardTrack">
+              <div class="custom-slider-fill" id="beardFill"></div>
+              <div class="custom-slider-thumb" id="beardThumb"></div>
+            </div>
+          </div>
+          <div class="nav">
+            <button class="btn btn-ghost" id="backBtn">Back</button>
+            <button class="btn btn-primary" id="nextBtn">Next</button>
+          </div>
+        </div>
+      `;
+      const canvas = el.querySelector('#avatarCanvas');
+      const draw = () => drawAvatar(canvas.getContext('2d'), 46, 28, 14, avatarState.face, avatarState.hair, avatarState.beard);
+      el.querySelector('#faceSlider').addEventListener('input', e => { avatarState.face = Number(e.target.value); draw(); });
+      el.querySelector('#hairSlider').addEventListener('input', e => { avatarState.hair = Number(e.target.value); draw(); });
+
+      // Facial hair: the visible track stays put, but the drag itself is
+      // unbounded — keep dragging past the right edge and it just keeps
+      // escalating. Re-grabbing from wherever the mouse ended up (even way
+      // off past the track) needs to work too, in both directions.
+      //
+      // No oversized DOM element for this — that approach caused a stray
+      // horizontal scrollbar on the page and broke hit-testing once anything
+      // scrolled. Instead: listen on `document` directly and use only the
+      // Y-coordinate to decide "is this pointerdown roughly on the beard
+      // slider's row" — X can be anywhere, left or right, on- or off-track,
+      // it just doesn't matter. No element size/position to keep in sync,
+      // so nothing to go stale.
+      const beardTrack = el.querySelector('#beardTrack');
+      const beardThumb = el.querySelector('#beardThumb');
+      const beardFill = el.querySelector('#beardFill');
+      const beardValueLabel = el.querySelector('#beardValueLabel');
+      let beardRaw = avatarState.beard;
+      let beardDragging = false;
+      let beardTrackRect = null;
+
+      function beardLabelFor(raw) {
+        if (raw <= 10) return 'very yes';
+        if (raw <= 20) return 'no seriously stop';
+        if (raw <= 40) return 'this is a cry for help';
+        if (raw <= 80) return 'biblical';
+        return 'ok now you\'re just showing off';
+      }
+      function updateBeardVisual() {
+        const t = Math.min(1, Math.max(0, beardRaw / 10));
+        beardThumb.style.left = (t * 100) + '%';
+        beardFill.style.width = (t * 100) + '%';
+        beardThumb.classList.toggle('overdrive', beardRaw > 10);
+        beardValueLabel.textContent = beardLabelFor(beardRaw);
+        avatarState.beard = beardRaw;
+        draw();
+      }
+      function beardValueFromClientX(clientX) {
+        const relX = clientX - beardTrackRect.left; // deliberately unclamped past track width (and can go negative)
+        return Math.max(0, (relX / beardTrackRect.width) * 10);
+      }
+      function isOnBeardRow(clientY) {
+        const r = beardTrack.getBoundingClientRect();
+        return clientY >= r.top - 22 && clientY <= r.bottom + 22;
+      }
+
+      function onDocPointerDown(e) {
+        if (e.target instanceof Element && e.target.closest('#faceSlider, #hairSlider, button, input, .choice, a')) return;
+        if (!isOnBeardRow(e.clientY)) return;
+        beardDragging = true;
+        beardTrackRect = beardTrack.getBoundingClientRect();
+        beardThumb.classList.add('dragging');
+        beardRaw = beardValueFromClientX(e.clientX);
+        updateBeardVisual();
+      }
+      function onDocPointerMove(e) {
+        if (!beardDragging) return;
+        beardRaw = beardValueFromClientX(e.clientX);
+        updateBeardVisual();
+      }
+      function onDocPointerUp() {
+        beardDragging = false;
+        beardThumb.classList.remove('dragging');
+      }
+      document.addEventListener('pointerdown', onDocPointerDown);
+      document.addEventListener('pointermove', onDocPointerMove);
+      document.addEventListener('pointerup', onDocPointerUp);
+      document.addEventListener('pointercancel', onDocPointerUp);
+      function stopBeardDragListening() {
+        document.removeEventListener('pointerdown', onDocPointerDown);
+        document.removeEventListener('pointermove', onDocPointerMove);
+        document.removeEventListener('pointerup', onDocPointerUp);
+        document.removeEventListener('pointercancel', onDocPointerUp);
+      }
+
+      updateBeardVisual();
+      el.querySelector('#backBtn').addEventListener('click', () => { stopBeardDragListening(); goBack(); });
+      el.querySelector('#nextBtn').addEventListener('click', () => {
+        stopBeardDragListening();
+        answers.avatar_face = String(avatarState.face);
+        answers.avatar_hair = String(avatarState.hair);
+        answers.avatar_beard = String(avatarState.beard);
+        advanceFrom(id);
+      });
+      return el;
+    }
+
+    // 12x16 pixel-grid avatar template. H=hair F=face e=eye m=mouth j=jaw(facial-hair-eligible) .=empty
+    const AVATAR_GRID = [
+      '....HHHH....', '...HHHHHH...', '..HHHHHHHH..', '.HHHHHHHHHH.',
+      '.HFFFFFFFFH.', '.FFFFFFFFFF.', '.FFeFFFFeFF.', '.FFFFFFFFFF.',
+      '.FFFjmjFFFF.', '.FFjjjjjjFF.', '.FjjjjjjjjF.', '..jjjjjjjj..',
+      '..FFjjjjFF..', '...FFFFFF...', '...FFFFFF...', '....FFFF....',
+    ];
+    const BEARD_ROW_ORDER = [12, 11, 10, 9, 8]; // reveal order, bottom (chin) to top (cheek)
+
+    // `clear` defaults to true (clears the whole canvas first — needed on the
+    // reusable avatar-preview canvas so stale wide facial-hair tufts from a
+    // previous, larger drag value get wiped between redraws). Pass false when
+    // drawing onto a canvas that already has OTHER content on it (like the
+    // player card's backdrop) — clearing there would erase that content too,
+    // since this always clears the canvas's full pixel dimensions, not just
+    // the avatar's own footprint.
+    function drawAvatar(ctx, ox, oy, px, faceSlider, hairSlider, beardSlider, clear) {
+      const faceHue = Math.round((faceSlider/10) * 360);
+      const hairHue = Math.round((hairSlider/10) * 360);
+      const faceColor = `hsl(${faceHue}, 65%, 68%)`;
+      const hairColor = `hsl(${hairHue}, 55%, 38%)`;
+      const beardColor = `hsl(${hairHue}, 45%, 24%)`;
+      const beardLevel = Math.round((beardSlider/10) * BEARD_ROW_ORDER.length);
+      const revealedRows = new Set(BEARD_ROW_ORDER.slice(0, beardLevel));
+      if (clear !== false) ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+      AVATAR_GRID.forEach((row, r) => {
+        for (let c = 0; c < row.length; c++) {
+          const ch = row[c];
+          if (ch === '.') continue;
+          let color;
+          if (ch === 'H') color = hairColor;
+          else if (ch === 'F') color = faceColor;
+          else if (ch === 'e') color = '#222';
+          else if (ch === 'm') color = '#222';
+          else if (ch === 'j') color = revealedRows.has(r) ? beardColor : faceColor;
+          ctx.fillStyle = color;
+          ctx.fillRect(ox + c*px, oy + r*px, px, px);
+        }
+      });
+      drawFacialHair(ctx, ox, oy, px, hairHue, beardSlider, beardColor);
+    }
+
+    // Facial hair gets progressively more unhinged as the slider climbs:
+    // a curly mustache grows in early, coils into a full spiral by the
+    // midpoint, and past ~45% chaotic zigzagging tufts start firing out in
+    // every direction — by the top of the slider it's a full cartoon
+    // explosion of a beard, well past the jaw silhouette.
+    function drawFacialHair(ctx, ox, oy, px, hairHue, beardSlider, beardColor) {
+      if (beardSlider <= 0) return;
+      const t = beardSlider / 10; // 0..1
+      const mouthCenterX = ox + 5.5*px, mouthY = oy + 8*px;
+      const highlightColor = `hsl(${hairHue}, 70%, 50%)`;
+
+      if (t > 0.25) {
+        // curly handlebar mustache, coiling into a full spiral loop by t=1
+        const curlT = Math.min(1, (t - 0.25) / 0.75);
+        const curlSize = px * (0.5 + curlT * 3.2);
+        ctx.strokeStyle = beardColor;
+        ctx.lineWidth = Math.max(2, px * (0.28 + curlT * 0.2));
+        ctx.lineCap = 'round';
+        [-1, 1].forEach(dir => {
+          const startX = mouthCenterX + dir*px*0.55, startY = mouthY - px*0.1;
+          const midX = startX + dir*curlSize*0.8, midY = startY - curlSize*0.5;
+          const endX = midX + dir*curlSize*0.15, endY = midY + curlSize*0.7;
+          ctx.beginPath();
+          ctx.moveTo(startX, startY);
+          ctx.quadraticCurveTo(midX, midY, endX, endY);
+          ctx.stroke();
+          if (curlT > 0.55) {
+            const loopT = (curlT - 0.55) / 0.45;
+            ctx.beginPath();
+            ctx.arc(endX, endY, px*(0.15 + 0.35*loopT), 0, Math.PI*2*Math.min(1.4, loopT*1.6));
+            ctx.stroke();
+          }
+        });
+      }
+
+      if (t > 0.45) {
+        // chaotic tufts spiking out past the jaw, cheeks, even past the ears —
+        // more numerous, longer, and zigzaggier the further the slider goes.
+        const wildT = (t - 0.45) / 0.55; // deliberately unclamped — this is what lets it escalate forever
+        const tuftCount = Math.min(400, Math.round(wildT * 20) + 2); // cap the *count* for perf; length/chaos stays unbounded
+        const jawSpots = [
+          [2,10],[1,11],[10,10],[11,11],[3,12],[9,12],[2,9],[10,9],
+          [0,10],[12,10],[1,8],[11,8],[0,12],[12,12],[3,13],[9,13],
+          [5,13],[7,13],[0,7],[12,7],[1,5],[11,5],
+        ];
+        ctx.lineCap = 'round';
+        for (let i = 0; i < tuftCount; i++) {
+          const [col, row] = jawSpots[i % jawSpots.length];
+          const side = col < 6 ? -1 : (col === 6 ? (i % 2 === 0 ? -1 : 1) : 1);
+          const bx = ox + col*px + px*0.5, by = oy + row*px + px*0.5;
+          const wobble = (i * 37) % 100 / 100; // deterministic per-tuft variety, no flicker on redraw
+          const angleWobble = (i * 53) % 100 / 100;
+          const len = px * (1.0 + wildT * 6.5) * (0.55 + wobble * 0.9);
+          const angle = -1.0 + angleWobble * 2.0;
+          ctx.strokeStyle = i % 3 === 0 ? highlightColor : beardColor;
+          ctx.lineWidth = Math.max(1.5, px * (0.14 + ((i * 19) % 100) / 100 * 0.24));
+          ctx.beginPath();
+          ctx.moveTo(bx, by);
+          if (wildT > 0.4) {
+            // zigzag once things get truly chaotic
+            const kinkX = bx + side*Math.cos(angle)*len*0.5 + Math.sin(angle + i)*px*0.8;
+            const kinkY = by + Math.sin(angle)*len*0.5 - Math.cos(angle + i)*px*0.6;
+            ctx.lineTo(kinkX, kinkY);
+            ctx.lineTo(bx + side*Math.cos(angle)*len, by + Math.sin(angle)*len);
+          } else {
+            ctx.lineTo(bx + side*Math.cos(angle)*len, by + Math.sin(angle)*len);
+          }
+          ctx.stroke();
+        }
+      }
+    }
+
+    // ============================================================
+    // STATS
+    // ============================================================
+    function computeStats() {
+      const stats = {};
+      STAT_QUESTION_IDS.forEach(id => {
+        const q = QUESTIONS[id];
+        const idx = q.choices.indexOf(answers[id]);
+        stats[q.statId] = idx >= 0 ? [2,4,6,8,10][idx] : 5;
+      });
+      // Speed: how fast the 5 stat questions were answered, summed real time
+      // (only counting time actually spent on those 5 screens).
+      const seconds = statTimeAccumMs > 0 ? statTimeAccumMs / 1000 : 40;
+      const thresholds = [15,25,35,45,60,80,100,130,170];
+      let speed = 1;
+      for (let i = 0; i < thresholds.length; i++) { if (seconds < thresholds[i]) { speed = 10 - i; break; } }
+      stats.speed = speed;
+      return stats; // { speed, power, shoot, dunks, steal, block }, each 1-10
+    }
+
+    // ============================================================
+    // PLAYER CARD RENDER
+    // ============================================================
+    function lastNameFrom(fullName) {
+      const trimmed = (fullName || 'GUEST').trim();
+      const parts = trimmed.split(/\s+/);
+      return (parts.length > 1 ? parts[parts.length-1] : trimmed).toUpperCase();
+    }
+
+    function roundRectPath(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x+r, y);
+      ctx.arcTo(x+w, y, x+w, y+h, r);
+      ctx.arcTo(x+w, y+h, x, y+h, r);
+      ctx.arcTo(x, y+h, x, y, r);
+      ctx.arcTo(x, y, x+w, y, r);
+      ctx.closePath();
+    }
+
+    function drawBasketballIcon(ctx, cx, cy, r) {
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx, cy-r); ctx.lineTo(cx, cy+r); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx-r, cy); ctx.lineTo(cx+r, cy); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx - r*0.95, cy, r, -0.55, 0.55); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx + r*0.95, cy, r, Math.PI-0.55, Math.PI+0.55); ctx.stroke();
+    }
+
+    function drawBasketballBackground(ctx, w, h) {
+      ctx.save();
+      ctx.globalAlpha = 0.10;
+      ctx.strokeStyle = '#ff8c42';
+      ctx.lineWidth = 2;
+      const spacing = 100;
+      let row = 0;
+      for (let y = -spacing; y < h+spacing; y += spacing, row++) {
+        const offsetX = (row % 2 === 0) ? 0 : spacing/2;
+        for (let x = -spacing; x < w+spacing; x += spacing) {
+          drawBasketballIcon(ctx, x+offsetX, y, 32);
+        }
+      }
+      ctx.restore();
+    }
+
+    // Standard basketball/trading-card proportions: 2.5" x 3.5" (5:7).
+    const CARD_W = 640, CARD_H = 896, CARD_RADIUS = 40;
+    const CARD_FONT = "'Arial Black', Arial, sans-serif";
+    const CARD_PADDING = 50; // margin of opaque backdrop around the card itself
+
+    // Opaque backdrop matching the site's own ambient purple/stars background —
+    // without this, everything outside the card's rounded corners (and the
+    // corners themselves) is transparent, which looks washed out/translucent
+    // depending on what the PNG is viewed against.
+    function drawCardBackdrop(ctx, w, h) {
+      const grad = ctx.createRadialGradient(w*0.25, h*0.12, 0, w*0.25, h*0.12, Math.max(w,h)*0.9);
+      grad.addColorStop(0, '#1c1c3c');
+      grad.addColorStop(1, '#14142b');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+
+      function blob(x, y, r, hex) {
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+        g.addColorStop(0, hex + '66');
+        g.addColorStop(1, hex + '00');
+        ctx.fillStyle = g;
+        ctx.fillRect(x - r, y - r, r * 2, r * 2);
+      }
+      blob(w * 0.08, h * 0.04, w * 0.6, '#7c5cff');
+      blob(w * 0.97, h * 0.97, w * 0.55, '#ff5470');
+      blob(w * 0.9, h * 0.32, w * 0.35, '#ffd166');
+
+      // deterministic scatter (not Math.random) so the backdrop looks the
+      // same on the on-screen preview, the download, and the Drive copy
+      ctx.fillStyle = 'white';
+      for (let i = 0; i < 70; i++) {
+        const sx = (i * 137.5) % w;
+        const sy = (i * 78.3 + (i * i * 0.7) % h) % h;
+        ctx.globalAlpha = 0.25 + (i % 5) * 0.12;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 1 + (i % 3) * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function buildCardCanvas() {
+      const canvas = document.createElement('canvas');
+      canvas.width = CARD_W + CARD_PADDING * 2;
+      canvas.height = CARD_H + CARD_PADDING * 2;
+      const ctx = canvas.getContext('2d');
+
+      drawCardBackdrop(ctx, canvas.width, canvas.height);
+      ctx.save();
+      ctx.translate(CARD_PADDING, CARD_PADDING);
+
+      roundRectPath(ctx, 0, 0, CARD_W, CARD_H, CARD_RADIUS);
+      ctx.save();
+      ctx.clip();
+
+      const grad = ctx.createLinearGradient(0,0,0,CARD_H);
+      grad.addColorStop(0, '#23234a'); grad.addColorStop(1, '#0d0d1f');
+      ctx.fillStyle = grad; ctx.fillRect(0,0,CARD_W,CARD_H);
+      drawBasketballBackground(ctx, CARD_W, CARD_H);
+
+      // avatar, scaled up and centered
+      const avPx = 27;
+      const avW = 12*avPx, avH = 16*avPx;
+      drawAvatar(ctx, (CARD_W-avW)/2, 56, avPx, avatarState.face, avatarState.hair, avatarState.beard, false);
+
+      // name banner — just the last name, big and legible
+      const bannerY = 56 + avH + 20;
+      const bannerH = 78;
+      ctx.fillStyle = '#ff5470';
+      ctx.fillRect(0, bannerY, CARD_W, bannerH);
+      ctx.fillStyle = 'white';
+      ctx.font = `900 46px ${CARD_FONT}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(lastNameFrom(answers.name), CARD_W/2, bannerY + bannerH/2 + 2);
+      ctx.textBaseline = 'alphabetic';
+
+      // stats
+      const stats = computeStats();
+      const rows = [['SPEED','speed'],['POWER','power'],['SHOOT','shoot'],['DUNKS','dunks'],['STEAL','steal'],['BLOCK','block']];
+      let y = bannerY + bannerH + 42;
+      ctx.textAlign = 'left';
+      rows.forEach(([label, key]) => {
+        ctx.fillStyle = '#ffd166';
+        ctx.font = `900 28px ${CARD_FONT}`;
+        ctx.fillText(label, 46, y + 21);
+        const barX = 228, barW = 340, segCount = 10, gap = 5;
+        const segW = (barW - gap*(segCount-1)) / segCount;
+        for (let i = 0; i < segCount; i++) {
+          ctx.fillStyle = i < stats[key] ? '#4ade80' : 'rgba(255,255,255,0.14)';
+          ctx.fillRect(barX + i*(segW+gap), y, segW, 28);
+        }
+        y += 58;
+      });
+
+      ctx.restore(); // end clip
+
+      // crisp rounded border on top, outside the clip so it isn't cut off
+      roundRectPath(ctx, 2, 2, CARD_W-4, CARD_H-4, CARD_RADIUS);
+      ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 3;
+      ctx.stroke();
+
+      ctx.restore(); // end translate
+
+      return canvas;
+    }
+
+    function buildThanksScreen() {
+      const el = document.createElement('div');
+      el.className = 'screen';
+      const yes = answers.attending === "can't wait to be there!";
+      el.innerHTML = `
+        <div class="screen-inner">
+          <div class="q-prompt">${yes ? "boom shakalaka! 🏀" : "whatcha gonna do? 🤷"}</div>
+          <div class="final-wrap">
+            <div id="cardHolder"></div>
+            <div class="confirm-card">
+              <div><b>${EVENT.title}</b></div>
+              <div>${EVENT.humanWhen}</div>
+              <div>${EVENT.location} — <a href="${EVENT.mapUrl}" target="_blank" style="color:var(--gold)">map</a></div>
+              <div class="cal-buttons">
+                <a href="${googleCalUrl()}" target="_blank">+ Google Calendar</a>
+                <a href="${icsUrl()}" download="birthday-party.ics">⤓ .ics file</a>
+              </div>
+              <div class="card-download-btn"><button class="btn btn-primary" id="downloadCardBtn">⤓ Download my card</button></div>
+            </div>
+          </div>
+        </div>
+      `;
+      const canvas = buildCardCanvas();
+      canvas.style.width = '280px';
+      el.querySelector('#cardHolder').appendChild(canvas);
+      el.querySelector('#downloadCardBtn').addEventListener('click', () => {
+        canvas.toBlob(blob => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = (lastNameFrom(answers.name) || 'guest').toLowerCase() + '-card.png';
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 2000);
+        });
+      });
+      if (yes) setTimeout(burstConfetti, 150);
+      return el;
+    }
+
+    // ============================================================
+    // NAV / ADVANCE
+    // ============================================================
+    function nextIdFor(id) { const q = QUESTIONS[id]; return typeof q.next === 'function' ? q.next(answers[id]) : q.next; }
+    function goTo(id) {
+      history.push(id);
+      currentId = id;
+      if (STAT_QUESTION_IDS.includes(id)) statScreenEnteredAt = Date.now();
+      render();
+    }
+    function goBack() {
+      if (history.length <= 1) return; // already at Q1 — nothing earlier to go back to
+      history.pop(); currentId = history[history.length-1]; render();
+    }
+    function advanceFrom(id) {
+      if (STAT_QUESTION_IDS.includes(id) && statScreenEnteredAt != null) {
+        statTimeAccumMs += Date.now() - statScreenEnteredAt;
+        statScreenEnteredAt = null;
+      }
+      const nid = nextIdFor(id);
+      if (nid) goTo(nid); else submitForm();
+    }
+    function selectChoice(el, id, node) {
+      el.querySelectorAll('.choice').forEach(c => c.classList.remove('selected'));
+      node.classList.add('selected');
+      answers[id] = node.dataset.value;
+      el.querySelector('#nextBtn').disabled = false;
+      el.querySelector('#errorMsg').textContent = '';
+      // On every question except the last, picking an answer auto-advances.
+      // The final question is a deliberate exception — you get a chance to
+      // change your answer, and Submit has to be pressed on purpose.
+      const isFinal = QUESTIONS[id] && QUESTIONS[id].next === null;
+      if (!isFinal) setTimeout(() => attemptAdvance(el, id), 160);
+    }
+    function attemptAdvance(el, id) {
+      let value = answers[id];
+      const ti = el.querySelector('#textInput');
+      if (ti) { value = ti.value.trim(); answers[id] = value; }
+      if (!value) { el.querySelector('#errorMsg').textContent = "Need something here — go on."; return; }
+      advanceFrom(id);
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.metaKey||e.ctrlKey||e.altKey) return;
+      const active = stage.querySelector('.screen.active');
+      if (!active) return;
+      const box = active.querySelector('.choices');
+      if (!box) return;
+      const key = e.key.toUpperCase();
+      if (key.length!==1 || key<'A' || key>'Z') return;
+      const nodes = Array.from(box.querySelectorAll('.choice'));
+      const idx = key.charCodeAt(0)-65;
+      if (idx>=0 && idx<nodes.length) selectChoice(active, currentId, nodes[idx]);
+    });
+    // ============================================================
+    // SUBMIT — includes the rendered card as base64 PNG so it can be
+    // saved to Drive server-side (see Code.gs's saveCardToDrive_).
+    // ============================================================
+    function submitForm() {
+      if (submitting) return; submitting = true;
+      const active = stage.querySelector('.screen.active');
+      const nextBtn = active && active.querySelector('#nextBtn');
+      const backBtn = active && active.querySelector('#backBtn');
+      if (nextBtn) { nextBtn.disabled = true; nextBtn.textContent = 'Sending...'; }
+      if (backBtn) backBtn.disabled = true;
+
+      const cardCanvas = buildCardCanvas();
+      const cardPng = cardCanvas.toDataURL('image/png').split(',')[1]; // strip data: prefix
+      const payload = Object.assign({}, answers, { cardPng });
+
+      fetch(EXEC_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(payload) })
+        .then(() => { submitting = false; goTo('thanks'); })
+        .catch(() => {
+          submitting = false;
+          if (nextBtn) { nextBtn.disabled = false; nextBtn.textContent = 'Submit'; }
+          if (backBtn) backBtn.disabled = false;
+        });
+    }
+
+    // ============================================================
+    // AMBIENT BACKGROUND
+    // ============================================================
+    (function initBackground() {
+      const bg = document.getElementById('bg');
+      ['b1','b2','b3'].forEach(cls => { const d=document.createElement('div'); d.className='blob '+cls; bg.appendChild(d); });
+      for (let i=0;i<40;i++) {
+        const s = document.createElement('div'); s.className='star';
+        s.style.left = Math.random()*100+'%'; s.style.top = Math.random()*100+'%';
+        s.style.animationDelay = (Math.random()*3)+'s'; bg.appendChild(s);
+      }
+    })();
+
+    // ============================================================
+    // CONFETTI
+    // ============================================================
+    const confettiCanvas = document.getElementById('confetti');
+    const ctxC = confettiCanvas.getContext('2d');
+    let confettiParticles = []; let confettiRAF = null;
+    function resizeConfetti() { confettiCanvas.width = innerWidth; confettiCanvas.height = innerHeight; }
+    window.addEventListener('resize', resizeConfetti); resizeConfetti();
+    const COLORS = ['#ff5470','#7c5cff','#ffd166','#4dd4ac','#ffffff'];
+    function burstConfetti() {
+      for (let i=0;i<140;i++) confettiParticles.push({
+        x: confettiCanvas.width/2, y: confettiCanvas.height/3, vx:(Math.random()-0.5)*12, vy:(Math.random()-1.4)*12,
+        size:4+Math.random()*5, color: COLORS[Math.floor(Math.random()*COLORS.length)], rot:Math.random()*6.28, vr:(Math.random()-0.5)*0.3, life:0, maxLife:90+Math.random()*40,
+      });
+      if (!confettiRAF) tickConfetti();
+    }
+    function tickConfetti() {
+      ctxC.clearRect(0,0,confettiCanvas.width,confettiCanvas.height);
+      confettiParticles.forEach(p => { p.vy+=0.18; p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr; p.life++;
+        ctxC.save(); ctxC.globalAlpha=Math.max(0,1-p.life/p.maxLife); ctxC.translate(p.x,p.y); ctxC.rotate(p.rot);
+        ctxC.fillStyle=p.color; ctxC.fillRect(-p.size/2,-p.size/2,p.size,p.size); ctxC.restore(); });
+      confettiParticles = confettiParticles.filter(p => p.life < p.maxLife);
+      if (confettiParticles.length) confettiRAF = requestAnimationFrame(tickConfetti);
+      else { confettiRAF = null; ctxC.clearRect(0,0,confettiCanvas.width,confettiCanvas.height); }
+    }
+
+    function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+    function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;'); }
+
+    goTo(START_ID); // no intro screen — straight into Q1
+  </script>
+</body>
+</html>

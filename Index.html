@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <?!= include('Style'); ?>
+</head>
+<body>
+  <div id="app">
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="stage" id="stage"></div>
+  </div>
+
+  <script>
+    // Injected from Code.gs's QUESTIONS array (server is the single source of truth).
+    const QUESTIONS = JSON.parse(<?!= questionsJson ?>);
+    const TOTAL_SCREENS = QUESTIONS.length + 2; // intro + questions + thank-you
+
+    const stage = document.getElementById('stage');
+    const progressFill = document.getElementById('progressFill');
+    const answers = {};
+    let current = 0; // 0 = intro, 1..N = questions, N+1 = thank you
+    let submitting = false;
+
+    function setProgress() {
+      const pct = Math.min(100, Math.round((current / (TOTAL_SCREENS - 1)) * 100));
+      progressFill.style.width = pct + '%';
+    }
+
+    function render(direction) {
+      setProgress();
+      const el = buildScreen(current);
+      const prev = stage.querySelector('.screen.active');
+      stage.appendChild(el);
+      requestAnimationFrame(() => {
+        el.classList.add('active');
+        if (prev) {
+          prev.classList.remove('active');
+          prev.classList.add('leaving');
+          setTimeout(() => prev.remove(), 400);
+        }
+      });
+      const autofocus = el.querySelector('[data-autofocus]');
+      if (autofocus) setTimeout(() => autofocus.focus(), 350);
+    }
+
+    function buildScreen(index) {
+      const el = document.createElement('div');
+      el.className = 'screen';
+
+      if (index === 0) {
+        el.classList.add('title-screen');
+        el.innerHTML = `
+          <div class="q-prompt">You're invited! 🎉</div>
+          <div class="title-sub">A few quick questions before we save you a seat (and a slice of cake).</div>
+          <div class="nav"><button class="btn btn-primary" id="startBtn">Let's go</button></div>
+        `;
+        el.querySelector('#startBtn').addEventListener('click', () => goTo(current + 1));
+        return el;
+      }
+
+      if (index === TOTAL_SCREENS - 1) {
+        el.innerHTML = `
+          <div class="q-prompt" id="thankYouMsg">Thanks — you're on the list! 🥳</div>
+          <div class="title-sub">See you at the party.</div>
+        `;
+        return el;
+      }
+
+      const q = QUESTIONS[index - 1];
+      const required = q.required !== false;
+      const header = `<div class="q-index">Question ${index} of ${QUESTIONS.length}</div>
+                       <div class="q-prompt">${escapeHtml(q.prompt)}</div>`;
+
+      if (q.type === 'choice') {
+        const choicesHtml = q.choices.map((choice, i) => `
+          <div class="choice" data-value="${escapeHtml(choice)}" tabindex="0">
+            <span class="choice-key">${indexToKey(i)}</span>
+            <span>${escapeHtml(choice)}</span>
+          </div>
+        `).join('');
+        el.innerHTML = `
+          ${header}
+          <div class="choices">${choicesHtml}</div>
+          <div class="error-msg" id="errorMsg"></div>
+          <div class="nav">
+            <button class="btn btn-ghost" id="backBtn">Back</button>
+            <button class="btn btn-primary" id="nextBtn" disabled>${index === QUESTIONS.length ? 'Submit' : 'Next'}</button>
+          </div>
+        `;
+        const existing = answers[q.id];
+        el.querySelectorAll('.choice').forEach(node => {
+          if (existing === node.dataset.value) node.classList.add('selected');
+          node.addEventListener('click', () => selectChoice(el, q, node));
+        });
+      } else {
+        el.innerHTML = `
+          ${header}
+          <input class="text-input" type="text" id="textInput" placeholder="Type your answer..." data-autofocus
+                 value="${escapeAttr(answers[q.id] || '')}" />
+          ${!required ? '<div class="optional-tag">Optional — feel free to skip</div>' : ''}
+          <div class="error-msg" id="errorMsg"></div>
+          <div class="nav">
+            <button class="btn btn-ghost" id="backBtn">Back</button>
+            <button class="btn btn-primary" id="nextBtn">${index === QUESTIONS.length ? 'Submit' : 'Next'}</button>
+          </div>
+          <div class="hint">Press Enter ↵</div>
+        `;
+        const input = el.querySelector('#textInput');
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') attemptAdvance(el, q, index);
+        });
+      }
+
+      el.querySelector('#backBtn').addEventListener('click', () => goTo(current - 1));
+      el.querySelector('#nextBtn').addEventListener('click', () => attemptAdvance(el, q, index));
+
+      return el;
+    }
+
+    function indexToKey(i) {
+      return String.fromCharCode(65 + i); // A, B, C...
+    }
+
+    function selectChoice(el, q, node) {
+      el.querySelectorAll('.choice').forEach(c => c.classList.remove('selected'));
+      node.classList.add('selected');
+      answers[q.id] = node.dataset.value;
+      el.querySelector('#nextBtn').disabled = false;
+      el.querySelector('#errorMsg').textContent = '';
+      // slight delay so the user sees the selection highlight before advancing
+      setTimeout(() => attemptAdvance(el, q, current), 180);
+    }
+
+    function attemptAdvance(el, q, index) {
+      const required = q.required !== false;
+      let value = answers[q.id];
+      const textInput = el.querySelector('#textInput');
+      if (textInput) {
+        value = textInput.value.trim();
+        answers[q.id] = value;
+      }
+      if (required && !value) {
+        el.querySelector('#errorMsg').textContent = "This one's required — mind filling it in?";
+        return;
+      }
+      if (index === QUESTIONS.length) {
+        submit(el);
+      } else {
+        goTo(current + 1);
+      }
+    }
+
+    function goTo(index) {
+      current = Math.max(0, Math.min(TOTAL_SCREENS - 1, index));
+      render();
+    }
+
+    function submit(el) {
+      if (submitting) return;
+      submitting = true;
+      const nextBtn = el.querySelector('#nextBtn');
+      const backBtn = el.querySelector('#backBtn');
+      if (nextBtn) { nextBtn.disabled = true; nextBtn.innerHTML = '<span class="spinner"></span>Sending...'; }
+      if (backBtn) backBtn.disabled = true;
+
+      google.script.run
+        .withSuccessHandler(() => { submitting = false; goTo(TOTAL_SCREENS - 1); })
+        .withFailureHandler((err) => {
+          submitting = false;
+          if (nextBtn) { nextBtn.disabled = false; nextBtn.textContent = 'Submit'; }
+          if (backBtn) backBtn.disabled = false;
+          const errorMsg = el.querySelector('#errorMsg');
+          if (errorMsg) errorMsg.textContent = 'Something went wrong — mind trying again?';
+          console.error(err);
+        })
+        .recordSubmission(answers);
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+    function escapeAttr(str) {
+      return escapeHtml(str).replace(/"/g, '&quot;');
+    }
+
+    render();
+  </script>
+</body>
+</html>

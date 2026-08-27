@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>You're Invited 🎉 — v2</title>
+<style>
+  :root { --hot: #ff2d78; --cool: #00e5ff; --gold: #ffd60a; --bg: #10021a; --bg2: #250735; --text: #fdfcff; --muted: #b79fd1; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; height:100%; background: radial-gradient(circle at 50% -10%, var(--bg2), var(--bg) 70%);
+    color: var(--text); font-family: 'Arial Black', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; overflow:hidden; }
+  #app { position: relative; height: 100vh; height: 100dvh; width: 100vw; display: flex; flex-direction: column; }
+
+  .marquee { text-align:center; padding: 12px 0 0; flex-shrink:0; }
+  .marquee span { font-size: 12px; letter-spacing: 0.25em; color: var(--gold); font-weight: 900; }
+
+  .stage { flex: 1; position: relative; }
+  .screen {
+    position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 28px 22px; text-align: center; opacity: 0; transform: scale(0.9) rotate(-1deg); pointer-events: none;
+    transition: opacity 0.35s cubic-bezier(.2,1.4,.4,1), transform 0.35s cubic-bezier(.2,1.4,.4,1);
+  }
+  .screen.active { opacity: 1; transform: scale(1) rotate(0); pointer-events: auto; }
+  .screen.leaving { opacity: 0; transform: scale(1.05) rotate(1deg); }
+
+  .q-prompt {
+    font-size: clamp(24px, 4.6vw, 40px); font-weight: 900; max-width: 700px; line-height: 1.25; margin-bottom: 28px;
+    text-shadow: 0 0 18px rgba(255,45,120,0.5);
+  }
+
+  .choices { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; max-width: 640px; }
+  .choice {
+    background: linear-gradient(160deg, var(--hot), #a3005c);
+    border: none; border-radius: 999px; padding: 16px 26px; font-size: 16px; font-weight: 800; color: white;
+    cursor: pointer; min-width: 160px; box-shadow: 0 6px 0 #6e0140; transition: transform 0.1s ease, box-shadow 0.1s ease;
+  }
+  .choice:hover { transform: translateY(-2px); }
+  .choice:active, .choice.selected { transform: translateY(4px); box-shadow: 0 2px 0 #6e0140; background: linear-gradient(160deg, var(--cool), #007b99); }
+  .choice .k { display:inline-block; background: rgba(0,0,0,0.25); border-radius: 6px; padding: 2px 6px; margin-right: 8px; font-size: 12px; }
+
+  .text-input { width: 100%; max-width: 440px; font-size: 22px; padding: 14px 4px; background: transparent; border: none;
+    border-bottom: 3px solid var(--cool); color: var(--text); outline: none; text-align: center; font-weight: 700; }
+
+  .nav { display: flex; gap: 12px; margin-top: 30px; }
+  .btn { border: none; border-radius: 999px; padding: 14px 30px; font-size: 15px; font-weight: 900; cursor: pointer; }
+  .btn-primary { background: var(--gold); color: #2a1400; box-shadow: 0 5px 0 #a37600; }
+  .btn-primary:active { transform: translateY(3px); box-shadow: 0 2px 0 #a37600; }
+  .btn-primary:disabled { opacity: 0.3; }
+  .btn-ghost { background: transparent; color: var(--muted); }
+  .hint { margin-top: 16px; color: var(--muted); font-size: 12px; letter-spacing: 0.05em; }
+  .error-msg { color: var(--hot); font-size: 13px; margin-top: 8px; min-height: 16px; }
+  .title-sub { color: var(--muted); font-size: 16px; max-width: 500px; margin-bottom: 26px; }
+
+  /* hype-o-meter dial */
+  .dial-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; margin-bottom: 6px; }
+  .dial { display: flex; gap: 6px; }
+  .bolt { font-size: 30px; cursor: pointer; filter: grayscale(1) opacity(0.3); transition: filter 0.12s ease, transform 0.12s ease; }
+  .bolt.lit { filter: grayscale(0) opacity(1); transform: scale(1.2) rotate(-6deg); }
+  .dial-label { font-size: 14px; color: var(--gold); font-weight: 800; }
+
+  /* one-word-per-screen forced click gag */
+  .word-choice {
+    background: linear-gradient(160deg, var(--cool), #005e73); border: none; border-radius: 16px; padding: 22px 40px;
+    font-size: 28px; font-weight: 900; color: white; cursor: pointer; box-shadow: 0 6px 0 #003a47;
+  }
+  .word-choice:active { transform: translateY(4px); box-shadow: 0 2px 0 #003a47; }
+
+  .confirm-card { max-width: 460px; background: rgba(255,255,255,0.06); border: 2px solid var(--gold); border-radius: 18px;
+    padding: 26px 28px; text-align: left; font-size: 15px; line-height: 1.7; }
+  .confirm-card b { color: var(--gold); }
+  .cal-buttons { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+  .cal-buttons a { text-decoration: none; background: rgba(255,214,10,0.15); border: 2px solid var(--gold); color: var(--gold);
+    padding: 10px 16px; border-radius: 999px; font-size: 13px; font-weight: 800; }
+
+  /* BONUS ROUND button, always visible */
+  #bonusBtn {
+    position: fixed; top: 16px; right: 16px; z-index: 20; background: var(--gold); color: #2a1400; border: none;
+    border-radius: 999px; padding: 10px 18px; font-size: 12px; font-weight: 900; cursor: pointer; box-shadow: 0 4px 0 #a37600;
+    animation: wiggle 3s ease-in-out infinite;
+  }
+  @keyframes wiggle { 0%,90%,100% { transform: rotate(0); } 92% { transform: rotate(-6deg); } 94% { transform: rotate(6deg); } 96% { transform: rotate(-4deg); } 98% { transform: rotate(4deg); } }
+  .overlay { position: fixed; inset:0; z-index:30; background: rgba(16,2,26,0.95); display:flex; align-items:center; justify-content:center;
+    flex-direction: column; gap: 14px; text-align: center; padding: 32px; opacity:0; pointer-events:none; transition: opacity 0.25s ease; }
+  .overlay.show { opacity: 1; pointer-events: auto; }
+  .overlay h2 { font-size: clamp(26px, 6vw, 44px); margin: 0; color: var(--gold); }
+  .overlay p { color: var(--muted); max-width: 440px; font-size: 16px; }
+
+  #confetti { position: fixed; inset: 0; z-index: 15; pointer-events: none; }
+</style>
+</head>
+<body>
+  <canvas id="confetti"></canvas>
+  <div id="app">
+    <div class="marquee"><span id="marqueeText">★ THE BIRTHDAY GAME SHOW ★</span></div>
+    <div class="stage" id="stage"></div>
+  </div>
+  <button id="bonusBtn">🎰 BONUS ROUND</button>
+  <div class="overlay" id="overlay">
+    <h2 id="prizeTitle"></h2>
+    <p id="prizeMsg"></p>
+    <button class="btn btn-primary" id="overlayClose">Back to the show</button>
+  </div>
+
+  <script>
+    const EVENT = {
+      title: "Peter's Birthday Party",
+      location: 'The Green Room, Shaw Festival Theatre, Niagara-on-the-Lake',
+      mapUrl: 'https://maps.app.goo.gl/dNC6DxQ9BVVo24WD8',
+      startUTC: '20260914T223000Z', endUTC: '20260915T003000Z',
+      humanWhen: 'Monday, September 14 · 6:30–8:30pm',
+    };
+    function googleCalUrl() {
+      const p = new URLSearchParams({ action:'TEMPLATE', text: EVENT.title, dates: `${EVENT.startUTC}/${EVENT.endUTC}`,
+        details: `Details: ${EVENT.mapUrl}`, location: EVENT.location });
+      return `https://www.google.com/calendar/render?${p.toString()}`;
+    }
+    function icsUrl() {
+      const ics = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//birthday-invite//EN','BEGIN:VEVENT',
+        `DTSTART:${EVENT.startUTC}`,`DTEND:${EVENT.endUTC}`,`SUMMARY:${EVENT.title}`,`LOCATION:${EVENT.location}`,
+        `DESCRIPTION:${EVENT.mapUrl}`,'END:VEVENT','END:VCALENDAR'].join('\r\n');
+      return 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
+    }
+    const EXEC_URL = 'https://script.google.com/macros/s/AKfycbyMU_miUBvTvIrY7I9KNEzbBiVLSQENPJVfQvpmZkhF0bGVAOzAcvUcg8HF-5IEXViv/exec';
+
+    const START_ID = 'r1';
+    const QUESTIONS = {
+      r1: { type:'choice', prompt: "Round 1: what's the going rate for showing up fashionably late?",
+        choices: ['10 minutes, everyone knows this', '0 minutes, I respect the invite', "3+ hours, I'm the main character"], next: 'hype' },
+      hype: { type:'scale', prompt: 'Rate your current hype level.', icon: '⚡', max: 10, next: 'w1' },
+      w1: { type: 'word', word: 'Please', next: 'w2' },
+      w2: { type: 'word', word: 'just', next: 'w3' },
+      w3: { type: 'word', word: 'come', next: 'w4' },
+      w4: { type: 'word', word: 'party.', next: 'name' },
+      name: { type:'text', prompt: 'Contestant name, for the leaderboard:', next: 'attending' },
+      attending: { type:'choice', prompt: 'Final answer — will you be there?', choices: ['yes', 'no'], next: null },
+    };
+
+    const stage = document.getElementById('stage');
+    const answers = {};
+    const history = [];
+    let currentId = 'intro';
+    let submitting = false;
+
+    const MARQUEES = ['★ THE BIRTHDAY GAME SHOW ★', '★ NO WRONG ANSWERS, MOSTLY ★', '★ TONIGHT: YOU, VS. THE FORM ★'];
+    document.getElementById('marqueeText').textContent = MARQUEES[Math.floor(Math.random()*MARQUEES.length)];
+
+    function render() {
+      const el = buildScreen(currentId);
+      const prev = stage.querySelector('.screen.active');
+      stage.appendChild(el);
+      requestAnimationFrame(() => {
+        el.classList.add('active');
+        if (prev) { prev.classList.remove('active'); prev.classList.add('leaving'); setTimeout(()=>prev.remove(),380); }
+      });
+      const af = el.querySelector('[data-autofocus]');
+      if (af) setTimeout(()=>af.focus(),320);
+    }
+
+    function buildScreen(id) {
+      const el = document.createElement('div');
+      el.className = 'screen';
+
+      if (id === 'intro') {
+        el.innerHTML = `
+          <div class="q-prompt">🎉 YOU'RE INVITED! 🎉</div>
+          <div class="title-sub">Step right up. Five rounds stand between you and the party of the year.</div>
+          <div class="nav"><button class="btn btn-primary" id="startBtn">Play</button></div>
+        `;
+        el.querySelector('#startBtn').addEventListener('click', () => goTo(START_ID));
+        return el;
+      }
+
+      if (id === 'thanks') {
+        const yes = answers.attending === 'yes';
+        el.innerHTML = `
+          <div class="q-prompt">${yes ? "🏆 YOU WIN! 🏆" : "Game over — no shame in it."}</div>
+          <div class="confirm-card">
+            <div><b>${EVENT.title}</b></div>
+            <div>${EVENT.humanWhen}</div>
+            <div>${EVENT.location} — <a href="${EVENT.mapUrl}" target="_blank" style="color:var(--gold)">map</a></div>
+            <div class="cal-buttons">
+              <a href="${googleCalUrl()}" target="_blank">+ Google Calendar</a>
+              <a href="${icsUrl()}" download="birthday-party.ics">⤓ .ics file</a>
+            </div>
+          </div>
+        `;
+        if (yes) setTimeout(burstConfetti, 150);
+        return el;
+      }
+
+      const q = QUESTIONS[id];
+
+      if (q.type === 'word') {
+        el.innerHTML = `
+          <div class="q-prompt" style="font-size:14px; letter-spacing:0.2em; color: var(--muted); text-transform:uppercase;">keep going</div>
+          <div class="nav" style="margin-top:0;"><button class="word-choice" id="wordBtn">${escapeHtml(q.word)}</button></div>
+        `;
+        el.querySelector('#wordBtn').addEventListener('click', () => { answers[id]=q.word; advanceFrom(id); });
+        return el;
+      }
+
+      if (q.type === 'scale') {
+        let items=''; for (let i=1;i<=q.max;i++) items += `<span class="bolt" data-v="${i}">${q.icon}</span>`;
+        el.innerHTML = `
+          <div class="q-prompt">${escapeHtml(q.prompt)}</div>
+          <div class="dial-wrap"><div class="dial">${items}</div><div class="dial-label" id="dialLabel">tap a bolt</div></div>
+          <div class="nav">
+            <button class="btn btn-ghost" id="backBtn">Back</button>
+            <button class="btn btn-primary" id="nextBtn" disabled>Next</button>
+          </div>
+        `;
+        const bolts = Array.from(el.querySelectorAll('.bolt'));
+        bolts.forEach(b => b.addEventListener('click', () => {
+          const v = Number(b.dataset.v);
+          bolts.forEach(x => x.classList.toggle('lit', Number(x.dataset.v) <= v));
+          answers[id] = String(v);
+          el.querySelector('#dialLabel').textContent = v + ' / ' + q.max + ' bolts';
+          el.querySelector('#nextBtn').disabled = false;
+        }));
+        el.querySelector('#backBtn').addEventListener('click', goBack);
+        el.querySelector('#nextBtn').addEventListener('click', () => advanceFrom(id));
+        return el;
+      }
+
+      if (q.type === 'choice') {
+        const choicesHtml = q.choices.map((c,i) => `<button class="choice" data-value="${escapeHtml(c)}"><span class="k">${indexToKey(i)}</span>${escapeHtml(c)}</button>`).join('');
+        el.innerHTML = `
+          <div class="q-prompt">${escapeHtml(q.prompt)}</div>
+          <div class="choices">${choicesHtml}</div>
+          <div class="error-msg" id="errorMsg"></div>
+          <div class="nav">
+            <button class="btn btn-ghost" id="backBtn">Back</button>
+          </div>
+          <div class="hint">PRESS ${q.choices.map((c,i)=>indexToKey(i)).join(' / ')} — OR TAP</div>
+        `;
+        el.querySelectorAll('.choice').forEach(node => node.addEventListener('click', () => {
+          answers[id] = node.dataset.value;
+          node.classList.add('selected');
+          setTimeout(() => advanceFrom(id), 150);
+        }));
+        el.querySelector('#backBtn').addEventListener('click', goBack);
+        return el;
+      }
+
+      // text
+      el.innerHTML = `
+        <div class="q-prompt">${escapeHtml(q.prompt)}</div>
+        <input class="text-input" id="textInput" placeholder="TYPE HERE" data-autofocus value="${escapeAttr(answers[id]||'')}" />
+        <div class="error-msg" id="errorMsg"></div>
+        <div class="nav">
+          <button class="btn btn-ghost" id="backBtn">Back</button>
+          <button class="btn btn-primary" id="nextBtn">Next</button>
+        </div>
+        <div class="hint">PRESS ENTER</div>
+      `;
+      el.querySelector('#textInput').addEventListener('keydown', e => { if (e.key==='Enter') attemptAdvance(el,id); });
+      el.querySelector('#backBtn').addEventListener('click', goBack);
+      el.querySelector('#nextBtn').addEventListener('click', () => attemptAdvance(el,id));
+      return el;
+    }
+
+    function indexToKey(i){ return String.fromCharCode(65+i); }
+    function nextIdFor(id){ const q=QUESTIONS[id]; return typeof q.next==='function' ? q.next(answers[id]) : q.next; }
+    function goTo(id){ history.push(id); currentId=id; render(); }
+    function goBack(){ if (history.length<=1){ currentId='intro'; history.length=0; render(); return; } history.pop(); currentId=history[history.length-1]; render(); }
+    function advanceFrom(id){ const nid=nextIdFor(id); if (nid) goTo(nid); else submitForm(); }
+    function attemptAdvance(el,id){
+      const ti = el.querySelector('#textInput');
+      if (ti) answers[id]=ti.value.trim();
+      if (!answers[id]) { el.querySelector('#errorMsg').textContent='Need an answer, contestant.'; return; }
+      advanceFrom(id);
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.metaKey||e.ctrlKey||e.altKey) return;
+      const active = stage.querySelector('.screen.active');
+      if (!active) return;
+      const box = active.querySelector('.choices');
+      if (!box) return;
+      const key = e.key.toUpperCase();
+      if (key.length!==1 || key<'A' || key>'Z') return;
+      const nodes = Array.from(box.querySelectorAll('.choice'));
+      const idx = key.charCodeAt(0)-65;
+      if (idx>=0 && idx<nodes.length) nodes[idx].click();
+    });
+
+    function submitForm(){
+      if (submitting) return; submitting = true;
+      fetch(EXEC_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(answers) })
+        .then(()=>{ submitting=false; goTo('thanks'); }).catch(()=>{ submitting=false; });
+    }
+
+    // BONUS ROUND: always-visible, click-to-play mini slot-machine gag
+    const PRIZES = ['ETERNAL GLORY','A HUG, NEXT TIME YOU SEE ME','NOTHING, BUT EMOTIONALLY YOU WIN','MY RESPECT (LIMITED SUPPLY)','A SECOND SLICE OF CAKE, ALLEGEDLY'];
+    document.getElementById('bonusBtn').addEventListener('click', () => {
+      document.getElementById('prizeTitle').textContent = '🎰 YOU WIN:';
+      document.getElementById('prizeMsg').textContent = PRIZES[Math.floor(Math.random()*PRIZES.length)];
+      document.getElementById('overlay').classList.add('show');
+      burstConfetti();
+    });
+    document.getElementById('overlayClose').addEventListener('click', () => document.getElementById('overlay').classList.remove('show'));
+
+    const canvas = document.getElementById('confetti'); const ctx = canvas.getContext('2d');
+    let particles=[]; let raf=null;
+    function resize(){ canvas.width=innerWidth; canvas.height=innerHeight; }
+    window.addEventListener('resize', resize); resize();
+    const COLORS=['#ff2d78','#00e5ff','#ffd60a','#ffffff'];
+    function burstConfetti(){
+      for (let i=0;i<150;i++) particles.push({ x:canvas.width/2, y:canvas.height/3, vx:(Math.random()-0.5)*13, vy:(Math.random()-1.5)*13,
+        size:4+Math.random()*6, color:COLORS[Math.floor(Math.random()*COLORS.length)], rot:Math.random()*6.28, vr:(Math.random()-0.5)*0.3, life:0, maxLife:90+Math.random()*40 });
+      if (!raf) tick();
+    }
+    function tick(){
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      particles.forEach(p => { p.vy+=0.18; p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr; p.life++;
+        ctx.save(); ctx.globalAlpha=Math.max(0,1-p.life/p.maxLife); ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+        ctx.fillStyle=p.color; ctx.fillRect(-p.size/2,-p.size/2,p.size,p.size); ctx.restore(); });
+      particles = particles.filter(p => p.life<p.maxLife);
+      if (particles.length) raf=requestAnimationFrame(tick); else { raf=null; ctx.clearRect(0,0,canvas.width,canvas.height); }
+    }
+
+    function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+    function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;'); }
+
+    render();
+  </script>
+</body>
+</html>

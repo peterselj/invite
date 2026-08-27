@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Preview only — not shipped</title>
+<style>
+  :root {
+    --accent: #ff5470;
+    --bg: #1b1b2f;
+    --bg2: #262640;
+    --text: #f4f4f9;
+    --muted: #a5a5c0;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: linear-gradient(160deg, var(--bg), var(--bg2));
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    overflow: hidden;
+  }
+  #app { position: relative; height: 100vh; width: 100vw; display: flex; flex-direction: column; }
+  .progress-track { height: 6px; width: 100%; background: rgba(255,255,255,0.08); flex-shrink: 0; }
+  .progress-fill { height: 100%; width: 0%; background: var(--accent); transition: width 0.35s ease; }
+  .stage { flex: 1; position: relative; }
+  .screen {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; padding: 32px 24px; text-align: center;
+    opacity: 0; transform: translateY(24px); pointer-events: none;
+    transition: opacity 0.35s ease, transform 0.35s ease;
+  }
+  .screen.active { opacity: 1; transform: translateY(0); pointer-events: auto; }
+  .screen.leaving { opacity: 0; transform: translateY(-24px); }
+  .q-index { color: var(--accent); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 13px; margin-bottom: 14px; }
+  .q-prompt { font-size: clamp(22px, 4.5vw, 38px); font-weight: 700; max-width: 720px; line-height: 1.25; margin-bottom: 32px; }
+  .choices { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 480px; }
+  .choice {
+    display: flex; align-items: center; gap: 14px; background: rgba(255,255,255,0.06);
+    border: 2px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 16px 18px;
+    font-size: 17px; color: var(--text); cursor: pointer; text-align: left;
+    transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+  }
+  .choice:hover { border-color: var(--accent); background: rgba(255,84,112,0.12); }
+  .choice.selected { border-color: var(--accent); background: rgba(255,84,112,0.22); }
+  .choice:active { transform: scale(0.98); }
+  .choice-key {
+    flex-shrink: 0; width: 28px; height: 28px; border-radius: 7px; border: 2px solid rgba(255,255,255,0.25);
+    display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: var(--muted);
+  }
+  .text-input {
+    width: 100%; max-width: 480px; font-size: 20px; padding: 14px 4px; background: transparent;
+    border: none; border-bottom: 2px solid rgba(255,255,255,0.25); color: var(--text); outline: none; text-align: center;
+  }
+  .text-input:focus { border-bottom-color: var(--accent); }
+  .text-input::placeholder { color: var(--muted); }
+  .optional-tag { color: var(--muted); font-size: 13px; margin-top: 10px; }
+  .nav { display: flex; gap: 12px; margin-top: 36px; }
+  .btn { border: none; border-radius: 999px; padding: 12px 28px; font-size: 15px; font-weight: 600; cursor: pointer; transition: opacity 0.15s ease, transform 0.1s ease; }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn-ghost { background: transparent; color: var(--muted); }
+  .hint { margin-top: 18px; color: var(--muted); font-size: 13px; }
+  .title-screen .q-prompt { font-size: clamp(28px, 6vw, 48px); }
+  .title-sub { color: var(--muted); font-size: 17px; max-width: 520px; margin-bottom: 32px; }
+  .error-msg { color: var(--accent); font-size: 14px; margin-top: 10px; min-height: 18px; }
+  .spinner { width: 18px; height: 18px; border: 2.5px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; display: inline-block; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .preview-banner { position: fixed; top: 8px; left: 50%; transform: translateX(-50%); background: #222; color: #ffd166; font-size: 11px; padding: 4px 10px; border-radius: 6px; z-index: 999; opacity: 0.85; }
+</style>
+</head>
+<body>
+  <div class="preview-banner">LOCAL PREVIEW ONLY — not part of the shipped Apps Script files</div>
+  <div id="app">
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="stage" id="stage"></div>
+  </div>
+
+  <script>
+    // Mirrors QUESTIONS from Code.gs, for local preview only.
+    const QUESTIONS = [
+      { id: 'name', type: 'text', prompt: "First things first — who's arriving at the party?" },
+      { id: 'blank1', type: 'choice', prompt: 'It was a dark and stormy ___,',
+        choices: ['night', 'drink', 'story someone told at the last party'] },
+      { id: 'blank2', type: 'choice', prompt: 'when suddenly, from out of ___',
+        choices: ['nowhere', 'the corner of my eye', 'left field', 'my dreams and into my driveway'] },
+      { id: 'blank3', type: 'choice', prompt: 'a mysterious invitation appeared, and I knew I had to ___',
+        choices: ['RSVP immediately', 'clear my calendar', 'find the perfect outfit', 'text the group chat'] },
+      { id: 'blank4', type: 'text', prompt: 'Fill in the rest of the sentence: "And that\'s how I ended up ___"' },
+      { id: 'attending', type: 'choice', prompt: 'Will you be joining the party?',
+        choices: ["Yes, I'll be there!", "Sadly, I can't make it", "Still figuring it out"] },
+      { id: 'guestCount', type: 'choice', prompt: 'How many people total (including you)?',
+        choices: ['Just me', '2', '3', '4+'] },
+      { id: 'dietary', type: 'text', prompt: 'Any dietary restrictions or allergies we should know about?', required: false },
+      { id: 'note', type: 'text', prompt: 'Anything else? A song request, a well-wish, a bad joke — the floor is yours.', required: false },
+    ];
+    const TOTAL_SCREENS = QUESTIONS.length + 2;
+
+    const stage = document.getElementById('stage');
+    const progressFill = document.getElementById('progressFill');
+    const answers = {};
+    let current = 0;
+    let submitting = false;
+
+    // Mock of google.script.run for local preview only.
+    const google = {
+      script: {
+        run: {
+          _success: null, _failure: null,
+          withSuccessHandler(fn) { this._success = fn; return this; },
+          withFailureHandler(fn) { this._failure = fn; return this; },
+          recordSubmission(data) {
+            console.log('MOCK recordSubmission ->', data);
+            setTimeout(() => this._success && this._success({ ok: true }), 600);
+          }
+        }
+      }
+    };
+
+    function setProgress() {
+      const pct = Math.min(100, Math.round((current / (TOTAL_SCREENS - 1)) * 100));
+      progressFill.style.width = pct + '%';
+    }
+
+    function render() {
+      setProgress();
+      const el = buildScreen(current);
+      const prev = stage.querySelector('.screen.active');
+      stage.appendChild(el);
+      requestAnimationFrame(() => {
+        el.classList.add('active');
+        if (prev) {
+          prev.classList.remove('active');
+          prev.classList.add('leaving');
+          setTimeout(() => prev.remove(), 400);
+        }
+      });
+      const autofocus = el.querySelector('[data-autofocus]');
+      if (autofocus) setTimeout(() => autofocus.focus(), 350);
+    }
+
+    function buildScreen(index) {
+      const el = document.createElement('div');
+      el.className = 'screen';
+
+      if (index === 0) {
+        el.classList.add('title-screen');
+        el.innerHTML = `
+          <div class="q-prompt">You're invited! 🎉</div>
+          <div class="title-sub">A few quick questions before we save you a seat (and a slice of cake).</div>
+          <div class="nav"><button class="btn btn-primary" id="startBtn">Let's go</button></div>
+        `;
+        el.querySelector('#startBtn').addEventListener('click', () => goTo(current + 1));
+        return el;
+      }
+
+      if (index === TOTAL_SCREENS - 1) {
+        el.innerHTML = `
+          <div class="q-prompt" id="thankYouMsg">Thanks — you're on the list! 🥳</div>
+          <div class="title-sub">See you at the party.</div>
+        `;
+        return el;
+      }
+
+      const q = QUESTIONS[index - 1];
+      const required = q.required !== false;
+      const header = `<div class="q-index">Question ${index} of ${QUESTIONS.length}</div>
+                       <div class="q-prompt">${escapeHtml(q.prompt)}</div>`;
+
+      if (q.type === 'choice') {
+        const choicesHtml = q.choices.map((choice, i) => `
+          <div class="choice" data-value="${escapeHtml(choice)}" tabindex="0">
+            <span class="choice-key">${indexToKey(i)}</span>
+            <span>${escapeHtml(choice)}</span>
+          </div>
+        `).join('');
+        el.innerHTML = `
+          ${header}
+          <div class="choices">${choicesHtml}</div>
+          <div class="error-msg" id="errorMsg"></div>
+          <div class="nav">
+            <button class="btn btn-ghost" id="backBtn">Back</button>
+            <button class="btn btn-primary" id="nextBtn" disabled>${index === QUESTIONS.length ? 'Submit' : 'Next'}</button>
+          </div>
+        `;
+        const existing = answers[q.id];
+        el.querySelectorAll('.choice').forEach(node => {
+          if (existing === node.dataset.value) node.classList.add('selected');
+          node.addEventListener('click', () => selectChoice(el, q, node));
+        });
+      } else {
+        el.innerHTML = `
+          ${header}
+          <input class="text-input" type="text" id="textInput" placeholder="Type your answer..." data-autofocus
+                 value="${escapeAttr(answers[q.id] || '')}" />
+          ${!required ? '<div class="optional-tag">Optional — feel free to skip</div>' : ''}
+          <div class="error-msg" id="errorMsg"></div>
+          <div class="nav">
+            <button class="btn btn-ghost" id="backBtn">Back</button>
+            <button class="btn btn-primary" id="nextBtn">${index === QUESTIONS.length ? 'Submit' : 'Next'}</button>
+          </div>
+          <div class="hint">Press Enter ↵</div>
+        `;
+        const input = el.querySelector('#textInput');
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') attemptAdvance(el, q, index);
+        });
+      }
+
+      el.querySelector('#backBtn').addEventListener('click', () => goTo(current - 1));
+      el.querySelector('#nextBtn').addEventListener('click', () => attemptAdvance(el, q, index));
+
+      return el;
+    }
+
+    function indexToKey(i) { return String.fromCharCode(65 + i); }
+
+    function selectChoice(el, q, node) {
+      el.querySelectorAll('.choice').forEach(c => c.classList.remove('selected'));
+      node.classList.add('selected');
+      answers[q.id] = node.dataset.value;
+      el.querySelector('#nextBtn').disabled = false;
+      el.querySelector('#errorMsg').textContent = '';
+      setTimeout(() => attemptAdvance(el, q, current), 180);
+    }
+
+    function attemptAdvance(el, q, index) {
+      const required = q.required !== false;
+      let value = answers[q.id];
+      const textInput = el.querySelector('#textInput');
+      if (textInput) {
+        value = textInput.value.trim();
+        answers[q.id] = value;
+      }
+      if (required && !value) {
+        el.querySelector('#errorMsg').textContent = "This one's required — mind filling it in?";
+        return;
+      }
+      if (index === QUESTIONS.length) {
+        submit(el);
+      } else {
+        goTo(current + 1);
+      }
+    }
+
+    function goTo(index) {
+      current = Math.max(0, Math.min(TOTAL_SCREENS - 1, index));
+      render();
+    }
+
+    function submit(el) {
+      if (submitting) return;
+      submitting = true;
+      const nextBtn = el.querySelector('#nextBtn');
+      const backBtn = el.querySelector('#backBtn');
+      if (nextBtn) { nextBtn.disabled = true; nextBtn.innerHTML = '<span class="spinner"></span>Sending...'; }
+      if (backBtn) backBtn.disabled = true;
+
+      google.script.run
+        .withSuccessHandler(() => { submitting = false; goTo(TOTAL_SCREENS - 1); })
+        .withFailureHandler((err) => {
+          submitting = false;
+          if (nextBtn) { nextBtn.disabled = false; nextBtn.textContent = 'Submit'; }
+          if (backBtn) backBtn.disabled = false;
+          const errorMsg = el.querySelector('#errorMsg');
+          if (errorMsg) errorMsg.textContent = 'Something went wrong — mind trying again?';
+          console.error(err);
+        })
+        .recordSubmission(answers);
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+    function escapeAttr(str) { return escapeHtml(str).replace(/"/g, '&quot;'); }
+
+    render();
+  </script>
+</body>
+</html>
